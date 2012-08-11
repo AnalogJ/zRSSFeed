@@ -17,7 +17,7 @@ Now add the script to call the zRSSFeed plugin with the RSS URL and any options.
 
     <script type="text/javascript">
         $(document).ready(function () {
-            $('#test').rssfeed('http://feeds.reuters.com/reuters/oddlyEnoughNews', {
+            $('#test').rssfeed(['http://feeds.reuters.com/reuters/oddlyEnoughNews'], {
                 limit: 5
             });
         });
@@ -26,7 +26,7 @@ Now add the script to call the zRSSFeed plugin with the RSS URL and any options.
 ##Parameters
 | Parameter | Required | Description
 | ----- |-----| ----- | 
-|url | Yes | The complete URL to the RSS feed ie http://feeds.reuters.com/reuters/oddlyEnoughNews |
+|urls | Yes | An array of complete URL to the RSS feeds ie ['http://feeds.reuters.com/reuters/oddlyEnoughNews'] |
 | options | No | Optional settings for the plug-in (see below).|
 |fn	| No | Optional user callback function which is called after feeds are successfully loaded.
 
