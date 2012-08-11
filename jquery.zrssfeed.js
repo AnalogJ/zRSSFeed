@@ -61,7 +61,7 @@
 			//Storage for multiple feeds.
 			var rowArray = [];
 			var feedsToHandle = urls.length;
-			console.log(feedsToHandle);
+			
 			// Send request
 			for(var ndx in urls){
 				var url = urls[ndx];
@@ -71,15 +71,14 @@
 				if (options.key != null) api += "&key=" + options.key;
 				api += "&output=json_xml"
 			
-			console.log(api);
+			
 				$.getJSON(api, function(data){
 				
 				// Check for error
 				if (data.responseStatus == 200) {
 					feedsToHandle--;
 					// Process the feeds
-					console.log(feedsToHandle);
-					console.log(rowArray);
+					
 					rowArray = _process(e, data.responseData, options, rowArray);
 					
 				} else {
