@@ -1,7 +1,7 @@
 ##zRSSFeed
 ========
-
-zRSSFeed by Zazar, modified to support multiple RSS Feeds
+## Synopsis
+This is a modified version of [zRSSFeed by Zazar](http://www.zazar.net/developers/jquery/zrssfeed/) with support for multiple RSS Feeds
 
 ##Getting Started
 First include the jQuery and zRSSFeed libraries.
@@ -47,3 +47,11 @@ Now add the script to call the zRSSFeed plugin with the RSS URL and any options.
 | linktarget | _self | Specifies the target for all feed links ('_blank', '_self', '_top', framename).
 | sort | - | Sorts the feed items by either 'title' or 'date'. Leave empty for no sorting.
 | sortasc | true | Specifies the sort direction, either ascending (true) or descending (false).
+
+## Contributors
+
+Feel free to make any changes. 
+
+## License
+
+The original version is licensed MIT, as is this one. 
