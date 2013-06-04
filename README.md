@@ -1,5 +1,5 @@
 ##zRSSFeed
-========
+
 ## Synopsis
 This is a modified version of [zRSSFeed by Zazar](http://www.zazar.net/developers/jquery/zrssfeed/) with support for multiple RSS Feeds
 
