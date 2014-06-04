@@ -1,13 +1,18 @@
 /**
  * Plugin: jquery.zRSSFeed
  * 
- * Version: 1.1.6
- * (c) Copyright 2010-2012, Zazar Ltd
+ * Version: 1.2.0
+ * (c) Copyright 2010-2013, Zazar Ltd
  * 
  * Description: jQuery plugin for display of RSS feeds via Google Feed API
  *              (Based on original plugin jGFeed by jQuery HowTo. Filesize function by Cary Dunn.)
  * 
  * History:
+ * 1.2.1 - Added AMD support
+ * 1.2.0 - Added month names to date formats
+ * 1.1.9 - New dateformat option to allow feed date formatting
+ * 1.1.8 - Added historical option to enable scoring in the Google Feed API
+ * 1.1.7 - Added feed offset, link redirect & link content options
  * 1.1.6 - Added sort options
  * 1.1.5 - Target option now applies to all feed links
  * 1.1.4 - Added option to hide media and now compressed with Google Closure
@@ -20,17 +25,29 @@
  * 1.0.1 - Corrected issue with multiple instances
  *
  **/
+(function (factory) {
+	if ( typeof define === 'function' && define.amd ) {
+		// AMD. Register as an anonymous module.
+		define("jquery.zrssfeed", ['jquery'], factory);
+	} else if (typeof exports === 'object') {
+		// Node/CommonJS style for Browserify
+		module.exports = factory;
+	} else {
+		// Browser globals
+		factory(jQuery);
+	}
+}(function ($) {
 
-(function($){
-
-	$.fn.rssfeed = function(urls, options, fn) {	
+	$.fn.rssfeed = function(url, options, fn) {	
 	
-		// Set pluign defaults
+		// Set plugin defaults
 		var defaults = {
 			limit: 10,
+			offset: 1,
 			header: true,
 			titletag: 'h4',
 			date: true,
+			dateformat: 'datetime',
 			content: true,
 			snippet: true,
 			media: true,
@@ -39,8 +56,11 @@
 			key: null,
 			ssl: false,
 			linktarget: '_self',
+			linkredirect: '',
+			linkcontent: false,
 			sort: '',
-			sortasc: true
+			sortasc: true,
+			historical: false
 		};  
 		var options = $.extend(defaults, options); 
 		
@@ -56,34 +76,33 @@
 			if (!$e.hasClass('rssFeed')) $e.addClass('rssFeed');
 			
 			// Check for valid url
-			if(urls == null || urls.length == 0) return false;
+			if(url == null) return false;
+
+			// Add start offset to feed length
+			if (options.offset > 0) options.offset -= 1;
+			options.limit += options.offset;
 			
-			//Storage for multiple feeds.
-			var rowArray = [];
-			var feedsToHandle = urls.length;
-			
+			// Create Google Feed API address
+			var api = "http"+ s +"://ajax.googleapis.com/ajax/services/feed/load?v=1.0&callback=?&q=" + encodeURIComponent(url);
+			api += "&num=" + options.limit;
+			if (options.historical) api += "&scoring=h";
+			if (options.key != null) api += "&key=" + options.key;
+			api += "&output=json_xml"
+
 			// Send request
-			for(var ndx in urls){
-				var url = urls[ndx];
-				// Create Google Feed API address
-				var api = "http"+ s +"://ajax.googleapis.com/ajax/services/feed/load?v=1.0&callback=?&q=" + encodeURIComponent(url);
-				if (options.limit != null) api += "&num=" + options.limit;
-				if (options.key != null) api += "&key=" + options.key;
-				api += "&output=json_xml"
-			
-			
-				$.getJSON(api, function(data){
+			$.getJSON(api, function(data){
 				
 				// Check for error
 				if (data.responseStatus == 200) {
-					feedsToHandle--;
+	
 					// Process the feeds
-					
-					rowArray = _process(e, data.responseData, options, rowArray);
+					_process(e, data.responseData, options);
+
+					// Optional user callback function
+					if ($.isFunction(fn)) fn.call(this,$e);
 					
 				} else {
-					feedsToHandle--;
-					
+
 					// Handle error if required
 					if (options.showerror)
 						if (options.errormsg != '') {
@@ -91,64 +110,53 @@
 						} else {
 							var msg = data.responseDetails;
 						};
-						//$(e).html('<div class="rssError"><p>'+ msg +'</p></div>');
+						$(e).html('<div class="rssError"><p>'+ msg +'</p></div>');
 				};
-				if(feedsToHandle == 0){
-					
-					//SORT IF REQUIRED.
-					rowArray = sortArray(rowArray, options);
-					
-					//write to page
-					writeToPage(e, rowArray, options );
-					
-					
-					// Optional user callback function
-					if ($.isFunction(fn)) fn.call(this,$e);
-				}
-			});
-			
-			
-			}
-			
-			
-
-			
-			
-							
+			});				
 		});
 	};
 	
-	// Function to create HTML result array
-	var _process = function(e, data, options, rowArray) {
+	// Function to create HTML result
+	var _process = function(e, data, options) {
 
 		// Get JSON feed data
 		var feeds = data.feed;
 		if (!feeds) {
 			return false;
 		}
-		
+		var rowArray = [];
+		var rowIndex = 0;
+		var html = '';	
+		var row = 'odd';
 		
 		// Get XML data for media (parseXML not used as requires 1.5+)
 		if (options.media) {
-			var xml = getXMLDocument(data.xmlString);
+			var xml = _getXMLDocument(data.xmlString);
 			var xmlEntries = xml.getElementsByTagName('item');
 		}
+		
+		// Add header if required
+		if (options.header)
+			html +=	'<div class="rssHeader">' +
+				'<a href="'+feeds.link+'" title="'+ feeds.description +'">'+ feeds.title +'</a>' +
+				'</div>';
 			
 		// Add body
-
-
+		html += '<div class="rssBody">' +
+			'<ul>';
 
 
 		// Add feeds
-		for (var i=0; i<feeds.entries.length; i++) {
+		for (var i=options.offset; i<feeds.entries.length; i++) {
 			
-			var currentItem = rowArray.length;
-			rowArray[currentItem] = {};
+			rowIndex = i - options.offset;
+			rowArray[rowIndex] = [];
 
 			// Get individual feed
 			var entry = feeds.entries[i];
 			var pubDate;
 			var sort = '';
+			var feedLink = entry.link;
 
 			// Apply sort column
 			switch (options.sort) {
@@ -159,18 +167,37 @@
 					sort = entry.publishedDate;
 					break;
 			}
-			rowArray[currentItem]['sort'] = sort;
+			rowArray[rowIndex]['sort'] = sort;
 
 			// Format published date
 			if (entry.publishedDate) {
+
 				var entryDate = new Date(entry.publishedDate);
 				var pubDate = entryDate.toLocaleDateString() + ' ' + entryDate.toLocaleTimeString();
+
+				switch (options.dateformat) {
+					case 'datetime':
+						break;
+					case 'date':
+						pubDate = entryDate.toLocaleDateString();
+						break;
+					case 'time':
+						pubDate = entryDate.toLocaleTimeString();
+						break;
+					case 'timeline':
+						pubDate = _getLapsedTime(entryDate);
+						break;
+					default:
+						pubDate = _formatDate(entryDate,options.dateformat);
+						break;
+				}
 			}
 			
 			// Add feed row
-			rowArray[currentItem]['html'] = '<'+ options.titletag +'><a href="'+ entry.link +'" title="View this feed at '+ feeds.title +'">'+ entry.title +'</a></'+ options.titletag +'>'
+			if (options.linkredirect) feedLink = encodeURIComponent(feedLink);
+			rowArray[rowIndex]['html'] = '<'+ options.titletag +'><a href="'+ options.linkredirect + feedLink +'" title="View this feed at '+ feeds.title +'">'+ entry.title +'</a></'+ options.titletag +'>'
 
-			if (options.date && pubDate) rowArray[currentItem]['html'] += '<div>'+ pubDate +'</div>'
+			if (options.date && pubDate) rowArray[rowIndex]['html'] += '<div>'+ pubDate +'</div>'
 			if (options.content) {
 			
 				// Use feed snippet if available and optioned
@@ -179,8 +206,12 @@
 				} else {
 					var content = entry.content;
 				}
+
+				if (options.linkcontent) {
+					content = '<a href="'+ options.linkredirect + feedLink +'" title="View this feed at '+ feeds.title +'">'+ content +'</a>'
+				}
 				
-				rowArray[currentItem]['html'] += '<p>'+ content +'</p>'
+				rowArray[rowIndex]['html'] += '<p>'+ content +'</p>'
 			}
 			
 			// Add any media
@@ -188,26 +219,20 @@
 				var xmlMedia = xmlEntries[i].getElementsByTagName('enclosure');
 				if (xmlMedia.length > 0) {
 					
-					rowArray[currentItem]['html'] += '<div class="rssMedia"><div>Media files</div><ul>'
+					rowArray[rowIndex]['html'] += '<div class="rssMedia"><div>Media files</div><ul>'
 					
 					for (var m=0; m<xmlMedia.length; m++) {
 						var xmlUrl = xmlMedia[m].getAttribute("url");
 						var xmlType = xmlMedia[m].getAttribute("type");
 						var xmlSize = xmlMedia[m].getAttribute("length");
-						rowArray[currentItem]['html'] += '<li><a href="'+ xmlUrl +'" title="Download this media">'+ xmlUrl.split('/').pop() +'</a> ('+ xmlType +', '+ formatFilesize(xmlSize) +')</li>';
+						rowArray[rowIndex]['html'] += '<li><a href="'+ xmlUrl +'" title="Download this media">'+ xmlUrl.split('/').pop() +'</a> ('+ xmlType +', '+ _formatFilesize(xmlSize) +')</li>';
 					}
-					
+					rowArray[rowIndex]['html'] += '</ul></div>'
 				}
 			}
 					
 		}
 		
-		
-		return rowArray;
-
-		
-	};
-	function sortArray(rowArray, options){
 		// Sort if required
 		if (options.sort) {
 			rowArray.sort(function(a,b) {
@@ -230,15 +255,8 @@
 				}
 			});
 		}
-		return rowArray;
-	}
-	
-	
-	
-	function writeToPage(e, rowArray, options ){
+
 		// Add rows to output
-		var row = 'odd';
-		var html = '<ul>'
 		$.each(rowArray, function(e) {
 
 			html += '<li class="rssRow '+row+'">' + rowArray[e]['html'] + '</li>';
@@ -251,26 +269,56 @@
 			}			
 		});
 
-		html+='</ul>';
+		html += '</ul>' +
+			'</div>'
+		
 		$(e).html(html);
 
 		// Apply target to links
 		$('a',e).attr('target',options.linktarget);
-	}
+	};
 	
-	
-	function formatFilesize(bytes) {
+	var _formatFilesize = function(bytes) {
 		var s = ['bytes', 'kb', 'MB', 'GB', 'TB', 'PB'];
 		var e = Math.floor(Math.log(bytes)/Math.log(1024));
 		return (bytes/Math.pow(1024, Math.floor(e))).toFixed(2)+" "+s[e];
 	}
 
-	function getXMLDocument(string) {
+	var _formatDate = function(date,mask) {
+
+		// Convert to date and set return to the mask
+		var fmtDate = new Date(date);
+		date = mask;
+
+		// Replace mask tokens
+		date = date.replace('dd', _formatDigit(fmtDate.getDate()));
+		date = date.replace('MMMM', _getMonthName(fmtDate.getMonth()));
+		date = date.replace('MM', _formatDigit(fmtDate.getMonth()+1));
+		date = date.replace('yyyy',fmtDate.getFullYear());
+		date = date.replace('hh', _formatDigit(fmtDate.getHours()));
+		date = date.replace('mm', _formatDigit(fmtDate.getMinutes()));
+		date = date.replace('ss', _formatDigit(fmtDate.getSeconds()));
+
+		return date;
+	}
+
+	var _formatDigit = function(digit) {
+		digit += '';
+		if (digit.length < 2) digit = '0' + digit;
+		return digit;
+	}
+
+	var _getMonthName = function(month) {
+		var name = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+		return name[month];
+	}
+
+	var _getXMLDocument = function(string) {
 		var browser = navigator.appName;
 		var xml;
 		if (browser == 'Microsoft Internet Explorer') {
 			xml = new ActiveXObject('Microsoft.XMLDOM');
-			xml.async = 'false'
+			xml.async = 'false';
 			xml.loadXML(string);
 		} else {
 			xml = (new DOMParser()).parseFromString(string, 'text/xml');
@@ -278,4 +326,35 @@
 		return xml;
 	}
 
-})(jQuery);
+	var _getLapsedTime = function(date) {
+		
+		// Get current date and format date parameter
+		var todayDate = new Date();	
+		var pastDate = new Date(date);
+
+		// Get lasped time in seconds
+		var lapsedTime = Math.round((todayDate.getTime() - pastDate.getTime())/1000)
+
+		// Return lasped time in seconds, minutes, hours, days and weeks
+		if (lapsedTime < 60) {
+			return '< 1 min';
+		} else if (lapsedTime < (60*60)) {
+			var t = Math.round(lapsedTime / 60) - 1;
+			var u = 'min';
+		} else if (lapsedTime < (24*60*60)) {
+			var t = Math.round(lapsedTime / 3600) - 1;
+			var u = 'hour';
+		} else if (lapsedTime < (7*24*60*60)) {
+			var t = Math.round(lapsedTime / 86400) - 1;
+			var u = 'day';
+		} else {
+			var t = Math.round(lapsedTime / 604800) - 1;
+			var u = 'week';
+		}
+		
+		// Check for plural units
+		if (t > 1) u += 's';
+		return t + ' ' + u;
+	}
+
+}));
